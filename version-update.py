@@ -46,7 +46,7 @@ def main():
 
     git("fetch", "--tags")
     try:
-        latest = git("describe", "--tags").decode().strip()
+        latest = git("describe", "--abbrev=0", "--tags").decode().strip()
     except subprocess.CalledProcessError:
         # Default to version 1.0.0 if no tags are available
         version = str(date.today()) + ".0"
