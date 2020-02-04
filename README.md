@@ -7,7 +7,9 @@ Docker image that can be used to automatically version projects.
 Versions are being maintained using git tags.
 
 If no git tag is available, the first version update will result in version (current-date).1.
-If git tags are available, it will determine whether to update date part or the patch part.
+If git tags are available, it will determine whether to update date part or the patch part, 
+if the current date is different than the last tag's date newer tag will be (current-date).1, 
+if current date is as the same date as the last tag's date newer tag will be an increment to the last tag's patch part.
 
 ## Prerequisites
 
