@@ -1,23 +1,15 @@
 # gitlab-semantic-versioning
 
-Docker image that can be used to automatically version projects using semantic versioning. 
-
-Visit [semver.org](https://semver.org/) to read more about semantic versioning.
+Docker image that can be used to automatically version projects. 
 
 ## How is the version determined?
 
 Versions are being maintained using git tags.
 
-If no git tag is available, the first version update will result in version 1.0.0.
-If git tags are available, it will determine whether to do a major, minor, or patch update based on specific merge request labels. The `bump-minor` and `bump-major` labels exist to do either a minor or major bump. If a merge request has no labels attached, it will perform a patch update by default.
+If no git tag is available, the first version update will result in version (current-date).1.
+If git tags are available, it will determine whether to update date part or the patch part.
 
 ## Prerequisites
-
-### Group labels
-
-As stated above, the version update workflow relies on merge request labels to determine the new version. The `bump-minor` and `bump-major` labels have been set as global GitLab labels. However, global labels only propogate to groups created after setting a global label. When adding a global label, they [do not automatically propogate to existing groups](https://gitlab.com/gitlab-org/gitlab-ce/issues/12707).
-
-If you cannot select the specified labels in your merge request, your group was most likely created before the global labels were defined. Please follow [this guide to setup group-specific labels](https://docs.gitlab.com/ee/user/project/labels.html) 
 
 ### API token and group
 
@@ -43,63 +35,37 @@ Add the following variables:
 ## Pipeline configuration
 
 The pipeline configuration below will:
-1. Generate a unique version tag based on git describe
-2. Update the version for every build on the `master` branch.
-3. Tag the docker image built with the updated version as `latest` only for `tag` builds.
 
-This pipeline omits steps for building the  project and pushing the resulting Docker image to the registry.
+-It demonstrates tagging the project and passing the tag to other stages. 
 
 ```
 stages:
-  - generate-env-vars
   - version
-  - tag-latest
-
-variables:
-  IMAGE_NAME: $CI_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME
-
-generate-env-vars:
-  stage: generate-env-vars
-  script:
-    - TAG=$(git describe --tags --always)
-    - echo "export TAG=$TAG" > .variables
-    - echo "export IMAGE=$IMAGE_NAME:$TAG" >> .variables
-    - cat .variables
-  artifacts:
-    paths:
-    - .variables
+  - echo
 
 version:
   stage: version
-  image: mrooding/gitlab-semantic-versioning:1.0.0
+  image: cayro/gitlab-semantic-versioning:latest
+  tags:
+    - runner-tag
   script:
     - python3 /version-update/version-update.py
+    - TAG=$(git describe --tags --always)
+    - echo "export TAG=$TAG" > .variables
+  artifacts:
+    paths:
+      - .variables
   only:
-   - master
+    - develop
 
-tag-latest:
-  stage: tag-latest
-  image: docker:18.06.1-ce
+echo:
+  stage: echo
+  tags:
+    - runner-tag
+  only:
+    - develop
   before_script:
     - source .variables
   script:
-    - docker pull $IMAGE
-    - docker tag $IMAGE $IMAGE_NAME:latest
-    - docker push $IMAGE_NAME:latest
-  only:
-    - tag
+    - echo $TAG
 ```
-
-## Merge request instructions
-
-### Squash commits when merge request is accepted
-
-The new version will be determined based on the commit message. GitLab will automatically format a merge request commit message if the 'Squash commits when merge request is accepted` checkbox is checked during merge request creation.
-
-This workflow relies on that commit message format and will fail the pipeline if it cannot extract the merge request id from the commit message. 
-
-Unfortunately, GitLab [doesn't yet allow for setting the checkbox to checked by default](https://gitlab.com/gitlab-org/gitlab-ce/issues/27956). Until implemented, make sure to manually check the squash option upon creation.
-
-### Add a label to indicate a minor or major update
-
-As described above, if you want to perform a minor or major update, don't forget to add the appropriate label to your merge request.
