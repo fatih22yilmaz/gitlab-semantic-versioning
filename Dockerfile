@@ -9,10 +9,6 @@ RUN set -ex \
 
 WORKDIR /version-update
 
-COPY /requirements.txt .
-
-RUN pip install -r requirements.txt
-
 COPY /version-update.py .
 
 CMD ["python", "/version-update.py"]

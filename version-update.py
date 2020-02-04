@@ -1,55 +1,32 @@
 #!/usr/bin/env python3
 import os
 import re
-import sys
-import semver
 import subprocess
-import gitlab
+import sys
+from datetime import date, datetime
+
 
 def git(*args):
     return subprocess.check_output(["git"] + list(args))
+
 
 def verify_env_var_presence(name):
     if name not in os.environ:
         raise Exception(f"Expected the following environment variable to be set: {name}")
 
-def extract_gitlab_url_from_project_url():
-    project_url = os.environ['CI_PROJECT_URL']
-    project_path = os.environ['CI_PROJECT_PATH']
-
-    return project_url.split(f"/{project_path}", 1)[0]
-
-def extract_merge_request_id_from_commit():
-    message = git("log", "-1", "--pretty=%B")
-    matches = re.search(r'(\S*\/\S*!)(\d+)', message.decode("utf-8"), re.M|re.I)
-    
-    if matches == None:
-        raise Exception(f"Unable to extract merge request from commit message: {message}")
-
-    return matches.group(2)
-
-def retrieve_labels_from_merge_request(merge_request_id):
-    project_id = os.environ['CI_PROJECT_ID']
-    gitlab_private_token = os.environ['NPA_PASSWORD']
-
-    gl = gitlab.Gitlab(extract_gitlab_url_from_project_url(), private_token=gitlab_private_token)
-    gl.auth()
-
-    project = gl.projects.get(project_id)
-    merge_request = project.mergerequests.get(merge_request_id)
-
-    return merge_request.labels
 
 def bump(latest):
-    merge_request_id = extract_merge_request_id_from_commit()
-    labels = retrieve_labels_from_merge_request(merge_request_id)
-
-    if "bump-minor" in labels:
-        return semver.bump_minor(latest)
-    elif "bump-major" in labels:
-        return semver.bump_major(latest)
+    split = latest.split('.')
+    dateString = split[0]
+    date = datetime.strptime(dateString, "%Y-%m-%d").date()
+    version = split[1]
+    if date == date.today():
+        version = int(version) + 1
     else:
-        return semver.bump_patch(latest)
+        date = date.today()
+        version = 1
+    return str(date) + "." + str(version)
+
 
 def tag_repo(tag):
     repository_url = os.environ["CI_REPOSITORY_URL"]
@@ -60,10 +37,11 @@ def tag_repo(tag):
 
     git("remote", "set-url", "--push", "origin", push_url)
     git("tag", tag)
-    git("push", "origin", tag)        
+    git("push", "origin", tag)
+
 
 def main():
-    env_list = ["CI_REPOSITORY_URL", "CI_PROJECT_ID", "CI_PROJECT_URL", "CI_PROJECT_PATH", "NPA_USERNAME", "NPA_PASSWORD"]
+    env_list = ["CI_REPOSITORY_URL", "NPA_USERNAME", "NPA_PASSWORD"]
     [verify_env_var_presence(e) for e in env_list]
 
     git("fetch", "--tags")
@@ -71,7 +49,7 @@ def main():
         latest = git("describe", "--tags").decode().strip()
     except subprocess.CalledProcessError:
         # Default to version 1.0.0 if no tags are available
-        version = "1.0.0"
+        version = str(date.today()) + ".0"
     else:
         # Skip already tagged commits
         if '-' not in latest:
