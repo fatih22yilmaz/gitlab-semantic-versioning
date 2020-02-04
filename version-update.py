@@ -66,6 +66,7 @@ def main():
     env_list = ["CI_REPOSITORY_URL", "CI_PROJECT_ID", "CI_PROJECT_URL", "CI_PROJECT_PATH", "NPA_USERNAME", "NPA_PASSWORD"]
     [verify_env_var_presence(e) for e in env_list]
 
+    git("fetch", "--tags")
     try:
         latest = git("describe", "--tags").decode().strip()
     except subprocess.CalledProcessError:
