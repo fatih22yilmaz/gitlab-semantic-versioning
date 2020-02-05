@@ -44,19 +44,21 @@ def main():
     env_list = ["CI_REPOSITORY_URL", "NPA_USERNAME", "NPA_PASSWORD"]
     [verify_env_var_presence(e) for e in env_list]
 
-    git("fetch", "--tags")
+    git("fetch", "--tags", "-f")
     try:
-        latest = git("describe", "--abbrev=0", "--tags").decode().strip()
+        latestTag = git("describe", "--abbrev=0", "--tags").decode().strip()
+        latestTaggedCommitId = git("rev-list", "-n", "1", latestTag)
+        latestCommitId = git("log", "--format=%H", "-n", "1")
     except subprocess.CalledProcessError:
         # Default to version 1.0.0 if no tags are available
         version = str(date.today()) + ".0"
     else:
         # Skip already tagged commits
-        if '-' not in latest:
-            print(latest)
+        if latestTaggedCommitId == latestCommitId:
+            print("Already tagged commit, latest tag: ", latestTag)
             return 0
 
-        version = bump(latest)
+        version = bump(latestTag)
 
     tag_repo(version)
     print(version)
