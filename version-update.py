@@ -17,15 +17,32 @@ def verify_env_var_presence(name):
 
 def bump(latest):
     split = latest.split('.')
-    dateString = split[0]
-    date = datetime.strptime(dateString, "%Y-%m-%d").date()
+    if len(split) != 2:
+        print("Latest tag is not properly formatted, tag is not contain date field or patch number, default tag "
+              "format applying...")
+        print("Latest Tag: ", latest)
+        return default_tag()
+    tag_date_string = split[0]
     version = split[1]
-    if date == date.today():
+
+    try:
+        tag_date = datetime.strptime(tag_date_string, "%Y-%m-%d").date()
+    except:
+        print("Latest tag is not properly formatted, date field is not standard default tag format applying...")
+        print("Latest Tag: ", latest)
+        return default_tag()
+
+    if not version.isnumeric():
+        print("Latest tag is not properly formatted, version field is not numeric, default tag format applying...")
+        print("Latest Tag: ", latest)
+        return default_tag()
+
+    if tag_date == date.today():
         version = int(version) + 1
     else:
-        date = date.today()
+        tag_date = tag_date.today()
         version = 1
-    return str(date) + "." + str(version)
+    return str(tag_date) + "." + str(version)
 
 
 def tag_repo(tag):
@@ -40,25 +57,29 @@ def tag_repo(tag):
     git("push", "origin", tag)
 
 
+def default_tag():
+    return str(date.today()) + ".1"
+
+
 def main():
     env_list = ["CI_REPOSITORY_URL", "NPA_USERNAME", "NPA_PASSWORD"]
     [verify_env_var_presence(e) for e in env_list]
 
     git("fetch", "--tags", "-f")
     try:
-        latestTag = git("describe", "--abbrev=0", "--tags").decode().strip()
-        latestTaggedCommitId = git("rev-list", "-n", "1", latestTag)
-        latestCommitId = git("log", "--format=%H", "-n", "1")
+        latest_tag = git("describe", "--abbrev=0", "--tags").decode().strip()
+        latest_tagged_commit_id = git("rev-list", "-n", "1", latest_tag)
+        latest_commit_id = git("log", "--format=%H", "-n", "1")
     except subprocess.CalledProcessError:
         # Default to version 1.0.0 if no tags are available
-        version = str(date.today()) + ".0"
+        version = default_tag()
     else:
         # Skip already tagged commits
-        if latestTaggedCommitId == latestCommitId:
-            print("Already tagged commit, latest tag: ", latestTag)
+        if latest_tagged_commit_id == latest_commit_id:
+            print("Already tagged commit, latest tag: ", latest_tag)
             return 0
 
-        version = bump(latestTag)
+        version = bump(latest_tag)
 
     tag_repo(version)
     print(version)
