@@ -45,12 +45,8 @@ def bump(latest):
     return str(tag_date) + "." + str(version)
 
 
-def tag_repo(tag):
-    repository_url = os.environ["CI_REPOSITORY_URL"]
-    username = os.environ["NPA_USERNAME"]
-    password = os.environ["NPA_PASSWORD"]
-
-    push_url = re.sub(r'([a-z]+://)[^@]*(@.*)', rf'\g<1>{username}:{password}\g<2>', repository_url)
+def tag_repo(tag, npa_username, npa_password, ci_repository_url):
+    push_url = re.sub(r'([a-z]+://)[^@]*(@.*)', rf'\g<1>{npa_username}:{npa_password}\g<2>', ci_repository_url)
 
     git("remote", "set-url", "--push", "origin", push_url)
     git("tag", tag)
@@ -62,27 +58,36 @@ def default_tag():
 
 
 def main():
-    env_list = ["CI_REPOSITORY_URL", "NPA_USERNAME", "NPA_PASSWORD"]
+    env_list = ["CI_REPOSITORY_URL", "NPA_USERNAME", "NPA_PASSWORD", "CI_COMMIT_SHA"]
     [verify_env_var_presence(e) for e in env_list]
 
+    ci_repository_url = os.environ["CI_REPOSITORY_URL"]
+    npa_username = os.environ["NPA_USERNAME"]
+    npa_password = os.environ["NPA_PASSWORD"]
+    ci_commit_sha = os.environ["CI_COMMIT_SHA"]
+
     git("fetch", "--tags", "-f")
+
     try:
-        latest_tag = git("describe", "--abbrev=0", "--tags").decode().strip()
-        latest_tagged_commit_id = git("rev-list", "-n", "1", latest_tag)
-        latest_commit_id = git("log", "--format=%H", "-n", "1")
+        already_tagged_commit_tag = git("describe", "--tags", "--abbrev=0", ci_commit_sha)
     except subprocess.CalledProcessError:
-        # Default to version 1.0.0 if no tags are available
-        version = default_tag()
+        print("Commit is not tagged before.")
     else:
         # Skip already tagged commits
-        if latest_tagged_commit_id == latest_commit_id:
-            print("Already tagged commit, latest tag: ", latest_tag)
+        if already_tagged_commit_tag:
+            print("Already tagged commit, commit tag: ", already_tagged_commit_tag)
             return 0
 
+    try:
+        latest_tag = git("describe", "--abbrev=0", "--tags").decode().strip()
+    except subprocess.CalledProcessError:
+        # Default to version {Date}.1 if no tags are available
+        version = default_tag()
+    else:
         version = bump(latest_tag)
 
-    tag_repo(version)
-    print(version)
+    tag_repo(version, npa_username, npa_password, ci_repository_url)
+    print("Commit SHA:", ci_commit_sha, "Tag:", version)
 
     return 0
 
